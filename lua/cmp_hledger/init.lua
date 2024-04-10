@@ -1,124 +1,170 @@
 local source = {}
-local cmp = require('cmp')
+local cmp = require("cmp")
+local v = vim
 
 source.new = function()
-  local self = setmetatable({}, { __index = source })
-  self.items = nil
-  return self
+	local self = setmetatable({}, { __index = source })
+	self.accounts = nil
+	self.payees = nil
+	return self
 end
 
 source.get_trigger_characters = function()
-  return {
-    'Ex',
-    'In',
-    'As',
-    'Li',
-    'Eq',
-    'E:',
-    'I:',
-    'A:',
-    'L:',
-  }
+	return {
+		"Ex",
+		"In",
+		"As",
+		"Li",
+		"Eq",
+		"E:",
+		"I:",
+		"A:",
+		"L:",
+	}
 end
 
+-- Remove space at the beginning of the line
 local ltrim = function(s)
-  return s:match('^%s*(.*)')
+	return s:match("^%s*(.*)")
+end
+
+local trim_date = function(s)
+	return s:match("^%s*%d+-%d+-%d+ [%s*]*(.*)")
 end
 
 local split = function(str, sep)
-  local t = {}
-  for s in string.gmatch(str, '([^' .. sep .. ']+)') do
-    table.insert(t, s)
-  end
-  return t
+	local t = {}
+	for s in string.gmatch(str, "([^" .. sep .. "]+)") do
+		table.insert(t, s)
+	end
+	return t
 end
 
-local get_items = function(account_path)
-  local openPop = assert(io.popen(vim.b.hledger_bin .. ' accounts -f ' .. account_path))
-  local output = openPop:read('*all')
-  openPop:close()
-  local t = split(output, "\n")
+local get_accounts = function(account_path)
+	local openPop = assert(io.popen(v.b.hledger_bin .. " accounts -f " .. account_path))
+	local output = openPop:read("*all")
+	openPop:close()
+	local t = split(output, "\n")
 
-  local items = {}
-  for _, s in pairs(t) do
-    table.insert(items, {
-      label = s,
-      kind = cmp.lsp.CompletionItemKind.Property,
-    })
-  end
+	local accounts = {}
+	for _, s in pairs(t) do
+		table.insert(accounts, {
+			label = s,
+			kind = cmp.lsp.CompletionItemKind.Property,
+		})
+	end
 
-  return items
+	return accounts
+end
+
+local get_payees = function(account_path)
+	local openPop = assert(io.popen(v.b.hledger_bin .. " payees -f " .. account_path))
+	local output = openPop:read("*all")
+	openPop:close()
+	local t = split(output, "\n")
+
+	local payees = {}
+	for _, s in pairs(t) do
+		table.insert(payees, {
+			label = s,
+			kind = cmp.lsp.CompletionItemKind.Operator,
+		})
+	end
+
+	return payees
 end
 
 source.complete = function(self, request, callback)
-  if vim.bo.filetype ~= 'ledger' then
-    callback()
-    return
-  end
-  if vim.fn.executable("hledger") == 1 then
-    vim.b.hledger_bin = "hledger"
-  elseif vim.fn.executable("ledger") == 1 then
-    vim.b.hledger_bin = "ledger"
-  else
-    vim.api.nvim_echo({
-      { 'cmp_hledger',                         'ErrorMsg' },
-      { ' ' .. 'Can\'t find hledger or ledger' },
-    }, true, {})
-    callback()
-    return
-  end
-  local account_path = vim.api.nvim_buf_get_name(0)
-  if not self.items then
-    self.items = get_items(account_path)
-  end
+	-- Check filetype
+	if v.bo.filetype ~= "ledger" then
+		callback()
+		return
+	end
 
-  local prefix_mode = false
-  local input = ltrim(request.context.cursor_before_line):lower()
-  local prefixes = split(input, ":")
-  local pattern = ''
+	-- Get binary path
+	if v.fn.executable("hledger") == 1 then
+		v.b.hledger_bin = "hledger"
+	elseif v.fn.executable("ledger") == 1 then
+		v.b.hledger_bin = "ledger"
+	else
+		v.api.nvim_echo({
+			{ "cmp_hledger", "ErrorMsg" },
+			{ " " .. "Can't find hledger or ledger" },
+		}, true, {})
+		callback()
+		return
+	end
 
-  for i, prefix in ipairs(prefixes) do
-    if i == 1 then
-      pattern = string.format('%s[%%w%%-]*', prefix:lower())
-    else
-      pattern = string.format('%s:%s[%%w%%-]*', pattern, prefix:lower())
-    end
-  end
-  if #prefixes > 1 and pattern ~= '' then
-    prefix_mode = true
-  end
+	-- Retrieve filename
+	local account_path = v.api.nvim_buf_get_name(0)
+	if not self.accounts then
+		self.accounts = get_accounts(account_path)
+	end
 
-  local items = {}
-  for _, item in ipairs(self.items) do
-    if prefix_mode then
-      if string.match(item.label:lower(), pattern) then
-        table.insert(items, {
-          word = item.label,
-          label = item.label,
-          kind = item.kind,
-          textEdit = {
-            filterText = input,
-            newText = item.label,
-            range = {
-              start = {
-                line = request.context.cursor.row - 1,
-                character = request.offset - string.len(input),
-              },
-              ['end'] = {
-                line = request.context.cursor.row - 1,
-                character = request.context.cursor.col - 1,
-              },
-            },
-          },
-        })
-      end
-    else
-      if vim.startswith(item.label:lower(), input) then
-        table.insert(items, item)
-      end
-    end
-  end
-  callback(items)
+	if not self.payees then
+		self.payees = get_payees(account_path)
+	end
+
+	local input = trim_date(request.context.cursor_before_line)
+
+	if input then
+		input = input:lower()
+		local payees = {}
+		for _, item in ipairs(self.payees) do
+			if v.startswith(item.label:lower(), input) then
+				table.insert(payees, item)
+			end
+		end
+		callback(payees)
+	else
+		local prefix_mode = false
+		input = ltrim(request.context.cursor_before_line):lower()
+		local prefixes = split(input, ":")
+		local pattern = ""
+
+		for i, prefix in ipairs(prefixes) do
+			if i == 1 then
+				pattern = string.format("%s[%%w%%-]*", prefix:lower())
+			else
+				pattern = string.format("%s:%s[%%w%%-]*", pattern, prefix:lower())
+			end
+		end
+		if #prefixes > 1 and pattern ~= "" then
+			prefix_mode = true
+		end
+
+		local accounts = {}
+		for _, item in ipairs(self.accounts) do
+			if prefix_mode then
+				if string.match(item.label:lower(), pattern) then
+					table.insert(accounts, {
+						word = item.label,
+						label = item.label,
+						kind = item.kind,
+						textEdit = {
+							filterText = input,
+							newText = item.label,
+							range = {
+								start = {
+									line = request.context.cursor.row - 1,
+									character = request.offset - string.len(input),
+								},
+								["end"] = {
+									line = request.context.cursor.row - 1,
+									character = request.context.cursor.col - 1,
+								},
+							},
+						},
+					})
+				end
+			else
+				if v.startswith(item.label:lower(), input) then
+					table.insert(accounts, item)
+				end
+			end
+		end
+		callback(accounts)
+	end
 end
 
 return source
