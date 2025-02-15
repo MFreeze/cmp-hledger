@@ -10,7 +10,7 @@ source.new = function()
 end
 
 source.get_keyword_pattern = function()
-	return [[\(.\+:\|\d\{4}-\d\{2}-\d\{2}\|[.\+:\)]]
+	return [[\(.\+:\|\d\{4}-\d\{2}-\d\{2}\|\[.\+:\)]]
 end
 
 -- Remove space at the beginning of the line
