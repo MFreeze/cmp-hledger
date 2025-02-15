@@ -3,7 +3,7 @@ local cmp = require("cmp")
 local v = vim
 
 function source:new()
-	local s = setmetatable({}, { __index = self })
+	local s = setmetatable({}, { __index = source })
 	s.accounts = nil
 	s.payees = nil
 	return s
@@ -167,4 +167,5 @@ function source:complete(request, callback)
 	end
 end
 
-return source
+-- return source
+require("cmp").register_source("ledger", source)
