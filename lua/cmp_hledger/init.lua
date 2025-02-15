@@ -2,25 +2,15 @@ local source = {}
 local cmp = require("cmp")
 local v = vim
 
-source.new = function()
-	local self = setmetatable({}, { __index = source })
-	self.accounts = nil
-	self.payees = nil
-	return self
+function source:new()
+	local s = setmetatable({}, { __index = self })
+	s.accounts = nil
+	s.payees = nil
+	return s
 end
 
-source.get_trigger_characters = function()
-	return {
-		"Ex",
-		"In",
-		"As",
-		"Li",
-		"Eq",
-		"E:",
-		"I:",
-		"A:",
-		"L:",
-	}
+function source:get_keyword_pattern()
+	return [[\(.\+:\|\d\{4}-\d\{2}-\d\{2}\|[.\+:\)]]
 end
 
 -- Remove space at the beginning of the line
@@ -28,6 +18,12 @@ local ltrim = function(s)
 	return s:match("^%s*(.*)")
 end
 
+-- Remove potential squarred brackets
+local sbtrim = function(s)
+	return s:match("[(.*)]")
+end
+
+-- Remove beginning date
 local trim_date = function(s)
 	return s:match("^%s*%d+-%d+-%d+ [%s*]*(.*)")
 end
@@ -74,7 +70,7 @@ local get_payees = function(account_path)
 	return payees
 end
 
-source.complete = function(self, request, callback)
+function source:complete(request, callback)
 	-- Check filetype
 	if v.bo.filetype ~= "ledger" then
 		callback()
@@ -119,6 +115,10 @@ source.complete = function(self, request, callback)
 	else
 		local prefix_mode = false
 		input = ltrim(request.context.cursor_before_line):lower()
+		local virtual_input = sbtrim(input)
+		if virtual_input ~= nil then
+			input = virtual_input
+		end
 		local prefixes = split(input, ":")
 		local pattern = ""
 
