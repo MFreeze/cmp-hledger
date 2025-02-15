@@ -20,7 +20,7 @@ end
 
 -- Remove potential squarred brackets
 local sbtrim = function(s)
-	return s:match("[(.*)]")
+	return s:match("^%s*%[([^%]]*)")
 end
 
 -- Remove beginning date
