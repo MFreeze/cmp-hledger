@@ -2,14 +2,14 @@ local source = {}
 local cmp = require("cmp")
 local v = vim
 
-function source:new()
+source.new = function()
 	local s = setmetatable({}, { __index = source })
 	s.accounts = nil
 	s.payees = nil
 	return s
 end
 
-function source:get_keyword_pattern()
+source.get_keyword_pattern = function()
 	return [[\(.\+:\|\d\{4}-\d\{2}-\d\{2}\|[.\+:\)]]
 end
 
@@ -70,7 +70,7 @@ local get_payees = function(account_path)
 	return payees
 end
 
-function source:complete(request, callback)
+source.complete = function(self, request, callback)
 	-- Check filetype
 	if v.bo.filetype ~= "ledger" then
 		callback()
@@ -167,5 +167,4 @@ function source:complete(request, callback)
 	end
 end
 
--- return source
-require("cmp").register_source("ledger", source)
+return source
